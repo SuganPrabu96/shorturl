@@ -20,8 +20,9 @@ const (
 
 // Client is the client to connect to the redis server
 type Client struct {
-	address string
-	conn    redis.Conn
+	Address string
+	Pool    *redis.Pool
+	Conn    redis.Conn
 }
 
 // NewClient creates a new redis client
@@ -30,47 +31,45 @@ func NewClient(host string, port int) (*Client, error) {
 	// TODO: Setup a connection pool
 	address := host + ":" + strconv.Itoa(port)
 	options := []redis.DialOption{redis.DialReadTimeout(ReadTimeout), redis.DialWriteTimeout(WriteTimeout)}
-	c, err := redis.DialContext(ctx, "tcp", address, options...)
-	if err != nil {
-		return nil, err
+
+	pool := redis.Pool{
+		// Maximum number of idle connections in the pool.
+		MaxIdle: 80,
+		// max number of connections
+		MaxActive: 12000,
+		// Dial is an application supplied function for creating and
+		// configuring a connection.
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.DialContext(ctx, "tcp", address, options...)
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
 	}
-	defer c.Close()
-	client := &Client{address, c}
+
+	client := &Client{address, &pool, nil}
 	return client, nil
 }
 
-// GetValue gets value by key
+// GetValue gets value by key. Returns empty string if key was not found
 func (c *Client) GetValue(key string) (string, error) {
-	cmd := "GET " + key
-	reply, err := c.conn.Do(cmd)
+	reply, err := redis.String(c.Conn.Do("GET", key))
 	if err != nil {
 		return "", failure.Wrap(err)
-	}
-	if reply == nil {
-		return "", nil
 	}
 	return fmt.Sprintf("%v", reply), nil
 }
 
 // SetValueIfNotExists sets value if it does not exist
 func (c *Client) SetValueIfNotExists(key, value string) error {
-	cmd := "SETNX" + key + " " + value
-	reply, err := c.conn.Do(cmd)
+	reply, err := c.Conn.Do("SETNX", key, value)
 	if err != nil {
 		return failure.Wrap(err)
 	}
-	status := fmt.Sprintf("%v", reply)
-	if status != "OK" {
+	status := reply.(int64)
+	if status != 1 {
 		return errors.New("Key already exists")
-	}
-	return nil
-}
-
-// Close closes connection to redis server
-func (c *Client) Close() error {
-	err := c.conn.Close()
-	if err != nil {
-		return failure.Wrap(err)
 	}
 	return nil
 }

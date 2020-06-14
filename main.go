@@ -12,8 +12,10 @@ import (
 
 // Config is the application configuration
 type Config struct {
-	RedisHost string `envconfig:"REDIS_HOST" default:"localhost"`
-	RedisPort int    `envconfig:"REDIS_PORT" default:"6379"`
+	RedisHost  string `envconfig:"REDIS_HOST" default:"localhost"`
+	RedisPort  int    `envconfig:"REDIS_PORT" default:"6379"`
+	ServerHost string `envconfig:"SERVER_HOST" default:"localhost"`
+	ServerPort int    `envconfig:"SERVER_Port" default:"5000"`
 }
 
 func readConfig() (*Config, error) {
@@ -38,6 +40,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := server.NewServer(redisClient)
+	redisClient.Conn = redisClient.Pool.Get()
+	defer redisClient.Conn.Close()
+	s := server.NewServer(c.ServerHost, c.ServerPort, redisClient)
 	s.Serve()
 }

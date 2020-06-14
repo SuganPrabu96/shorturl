@@ -14,6 +14,9 @@
 *.so
 *.dylib
 
+# Dump files from redis
+*.rdb
+
 # Test binary, built with `go test -c`
 *.test
 
