@@ -58,14 +58,17 @@ func (s *Server) CreateEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	shortURL := GetRandomString(shortURLLength)
 
-	// TODO: Retry if shortURL already exists
-
 	// If URL doesn't start with http:// or https:// attach a prefix http://
 	// This is needed for routing endpoints
 	if !(strings.HasPrefix(c.URL, "http://") || strings.HasPrefix(c.URL, "https://")) {
 		c.URL = "http://" + c.URL
 	}
-	s.Client.SetValueIfNotExists(shortURL, c.URL)
+	err = s.Client.SetValueIfNotExists(shortURL, c.URL)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Println("Shortened URL ", shortURL)
